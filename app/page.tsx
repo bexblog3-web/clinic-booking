@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, ChangeEvent } from 'react'
 
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -33,7 +33,7 @@ export default function BookingPage() {
     note: '',
   })
   const today = new Date().toISOString().split('T')[0]
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { setForm({ ...form, [e.target.name]: e.target.value }) }
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { setForm({ ...form, [e.target.name]: e.target.value }) }
   const isFormValid = form.name && form.phone && form.date && form.time && form.symptom
   const handleSubmit = async () => {
     setLoading(true); setError('')
@@ -41,7 +41,7 @@ export default function BookingPage() {
       const res = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!res.ok) throw new Error('error')
       setStep('done')
-    } catch (e) { setError('送信中にエラーが発生しました') } finally { setLoading(false) }
+    } catch { setError('送信中にエラーが発生しました') } finally { setLoading(false) }
   }
   return (<div className="min-h-screen bg-blue-50"><h1>オンライン診療予約</h1></div>)
 }
