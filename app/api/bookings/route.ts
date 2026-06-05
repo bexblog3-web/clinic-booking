@@ -1,164 +1,165 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { Resend } from 'resend'
+import { verifyPatientToken } from '@/lib/auth'
+import { cookies } from 'next/headers'
 
-const DEPT_LABEL: Record<string, string> = { ent: '耳鼻科', orthopedics: '整形外科' }
+export const dynamic = 'force-dynamic'
 
-function isOpen() {
-  const now = new Date()
-  const jst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
-  const h = jst.getHours()
-  return h >= 8 && h < 18
+// Map admin keys to their allowed departments (null = all departments)
+const ADMIN_KEY_DEPT: Record<string, string | null> = {
+  [process.env.ADMIN_KEY_STAFF ?? 'key-staff-secret']: null,
+  [process.env.ADMIN_KEY_ORTHO ?? 'key-ortho-secret']: 'orthopedics',
+  [process.env.ADMIN_KEY_ENT ?? 'key-ent-secret']: 'ent',
 }
 
-function today() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+function sanitize(str: string): string {
+  return str.replace(/[<>"'&]/g, c =>
+    ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' }[c] ?? c)
+  )
 }
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin()
   const adminKey = req.headers.get('x-admin-key')
-  const dept = req.nextUrl.searchParams.get('department')
-  const patientId = req.nextUrl.searchParams.get('patientId')
+  const { searchParams } = new URL(req.url)
+  const department = searchParams.get('department')
 
-  // 管理者: 予約一覧
-  if (adminKey) {
-    const validKeys = [
-      process.env.ADMIN_STAFF_KEY,
-      process.env.ADMIN_ORTHO_KEY,
-      process.env.ADMIN_ENT_KEY,
-    ]
-    if (!validKeys.includes(adminKey)) return NextResponse.json({ error: '認証エラー' }, { status: 401 })
-    let q = supabase.from('bookings')
-      .select('*, patients(name, phone, address)')
-      .eq('booking_date', today())
-      .order('queue_number')
-    if (dept) q = q.eq('department', dept)
-    const { data, error } = await q
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Admin key auth
+  if (adminKey && adminKey in ADMIN_KEY_DEPT) {
+    const allowedDept = ADMIN_KEY_DEPT[adminKey]
+    if (allowedDept && department && department !== allowedDept) {
+      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    }
+    let query = supabase.from('bookings').select('*').order('queue_number')
+    if (allowedDept) query = query.eq('department', allowedDept)
+    else if (department) query = query.eq('department', department)
+    const today = new Date().toISOString().slice(0, 10)
+    query = query.eq('booking_date', today)
+    const { data, error } = await query
+    if (error) return NextResponse.json({ error: '予約の取得に失敗しました' }, { status: 500 })
     return NextResponse.json(data)
   }
 
-  // 患者: 本日の予約確認
-  if (patientId) {
-    const { data } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('patient_id', patientId)
-      .eq('booking_date', today())
-      .neq('status', 'cancelled')
-    return NextResponse.json(data)
+  // Patient token auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('patient_token')?.value
+  if (token) {
+    const payload = await verifyPatientToken(token)
+    if (payload) {
+      const patientIdParam = searchParams.get('patientId')
+      const targetId = patientIdParam ?? payload.patientId
+      if (targetId !== payload.patientId) {
+        return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+      }
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, department, queue_number, booking_date, status, created_at')
+        .eq('patient_id', payload.patientId)
+        .order('booking_date', { ascending: false })
+      if (error) return NextResponse.json({ error: '予約の取得に失敗しました' }, { status: 500 })
+      return NextResponse.json(data)
+    }
   }
 
-  return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 })
+  return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
 }
 
 export async function POST(req: NextRequest) {
-  if (!isOpen()) return NextResponse.json({ error: '受付時間外です' }, { status: 400 })
-
-  const { patientId, department, symptomSince, symptomDetail, email } = await req.json()
-  if (!patientId || !department || !symptomDetail) return NextResponse.json({ error: '必須項目が未入力です' }, { status: 400 })
-
   const supabase = getSupabaseAdmin()
-  const t = today()
+  const body = await req.json()
+  const { patientId, department, symptomDetail, email } = body
 
-  // 同診療科・同日の重複チェック
+  if (!patientId || !department) {
+    return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
+  }
+
+  // Verify patient exists
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id, name')
+    .eq('id', patientId)
+    .single()
+
+  if (patientError || !patient) {
+    return NextResponse.json({ error: '患者情報が見つかりません' }, { status: 404 })
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Check business hours from settings
+  const { data: settingsData } = await supabase.from('settings').select('key, value')
+  const settings = Object.fromEntries((settingsData ?? []).map((r: {key: string, value: string}) => [r.key, r.value]))
+  const openHour = parseInt(settings.open_hour ?? '8')
+  const closeHour = parseInt(settings.close_hour ?? '18')
+  const closedDates: string[] = JSON.parse(settings.closed_dates ?? '[]')
+  const nowHour = new Date().getHours()
+  if (nowHour < openHour || nowHour >= closeHour || closedDates.includes(today)) {
+    return NextResponse.json({ error: '受付時間外です' }, { status: 400 })
+  }
+
+  // Check duplicate booking
   const { data: existing } = await supabase
     .from('bookings')
     .select('id')
     .eq('patient_id', patientId)
     .eq('department', department)
-    .eq('booking_date', t)
-    .neq('status', 'cancelled')
+    .eq('booking_date', today)
+    .not('status', 'eq', 'cancelled')
     .single()
-  if (existing) return NextResponse.json({ error: '本日この診療科はすでに予約済みです' }, { status: 409 })
 
-  // 次の受付番号を取得
-  const { data: last } = await supabase
+  if (existing) {
+    return NextResponse.json({ error: '本日この診療科はすでに予約済みです' }, { status: 409 })
+  }
+
+  // Get next queue number
+  const { data: lastQueue } = await supabase
     .from('bookings')
     .select('queue_number')
     .eq('department', department)
-    .eq('booking_date', t)
+    .eq('booking_date', today)
     .order('queue_number', { ascending: false })
     .limit(1)
-    .single()
 
-  const nextNum = last ? last.queue_number + 1 : 1
-  if (nextNum > 100) return NextResponse.json({ error: '本日の受付は終了しました（上限100人）' }, { status: 400 })
+  const queueNumber = ((lastQueue?.[0]?.queue_number ?? 0) + 1)
 
-  // 患者名を取得
-  const { data: patient } = await supabase
-    .from('patients')
-    .select('name')
-    .eq('id', patientId)
-    .single()
+  // Sanitize free-text inputs
+  const sanitizedSymptom = symptomDetail ? sanitize(symptomDetail) : null
 
   const { data: booking, error } = await supabase
     .from('bookings')
-    .insert([{ patient_id: patientId, department, queue_number: nextNum, symptom_since: symptomSince, symptom_detail: symptomDetail, email, status: 'booked', booking_date: t }])
+    .insert({
+      patient_id: patientId,
+      department,
+      queue_number: queueNumber,
+      booking_date: today,
+      status: 'waiting',
+      symptom_detail: sanitizedSymptom,
+    })
     .select()
     .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // メール送信
-  if (email && process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      const patientName = patient?.name || '患者'
-      const deptLabel = DEPT_LABEL[department] || department
-      const queueNum = String(nextNum).padStart(3, '0')
-      const statusUrl = `https://clinic-booking-inky.vercel.app/status`
-
-      await resend.emails.send({
-        from: 'はまもと整形外科クリニック <onboarding@resend.dev>',
-        to: email,
-        subject: `【受付完了】${deptLabel} 受付番号 ${queueNum} 番`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-            <h2 style="color: #16a34a;">受付が完了しました</h2>
-            <p>${patientName} 様</p>
-            <p>以下の内容で受付が完了しました。</p>
-            <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
-              <tr>
-                <td style="padding: 8px; background: #f0fdf4; font-weight: bold; width: 40%;">診療科</td>
-                <td style="padding: 8px; background: #f0fdf4;">${deptLabel}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; font-weight: bold;">受付番号</td>
-                <td style="padding: 8px; font-size: 24px; font-weight: bold; color: #16a34a;">${queueNum} 番</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; background: #f0fdf4; font-weight: bold;">受付日</td>
-                <td style="padding: 8px; background: #f0fdf4;">${t}</td>
-              </tr>
-            </table>
-            <p>受付番号が近くなったら来院ください。</p>
-            <a href="${statusUrl}" style="display: inline-block; margin-top: 16px; padding: 12px 24px; background: #16a34a; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">混雑状況を確認する</a>
-            <p style="margin-top: 24px; color: #9ca3af; font-size: 12px;">はまもと整形外科クリニック</p>
-          </div>
-        `,
-      })
-    } catch (emailError) {
-      // メール送信失敗しても予約は成功として返す
-      console.error('Email send error:', emailError)
-    }
+  if (error) {
+    return NextResponse.json({ error: '予約の登録に失敗しました' }, { status: 500 })
   }
 
-  return NextResponse.json(booking, { status: 201 })
-}
+  // Send confirmation email
+  if (email && process.env.RESEND_API_KEY) {
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'onboarding@resend.dev',
+          to: email,
+          subject: '予約完了のお知らせ',
+          html: `<p>${patient.name}様、ご予約を承りました。</p><p>診療科: ${department === 'orthopedics' ? '整形外科' : '耳鼻科'}</p><p>受付番号: ${String(queueNumber).padStart(3, '0')}</p>`,
+        }),
+      })
+    } catch {}
+  }
 
-export async function PATCH(req: NextRequest) {
-  const adminKey = req.headers.get('x-admin-key')
-  const validKeys = [
-    process.env.ADMIN_STAFF_KEY,
-    process.env.ADMIN_ORTHO_KEY,
-    process.env.ADMIN_ENT_KEY,
-  ]
-  if (!validKeys.includes(adminKey || '')) return NextResponse.json({ error: '認証エラー' }, { status: 401 })
-
-  const { id, status } = await req.json()
-  const supabase = getSupabaseAdmin()
-  const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ booking, queue_number: queueNumber }, { status: 201 })
 }
