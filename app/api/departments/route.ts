@@ -15,8 +15,9 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('departments')
-    .select('*')
-    .order('name')
+    .select('id, name_ja, is_active, sort_order')
+    .eq('is_active', true)
+    .order('sort_order')
 
   if (error) return NextResponse.json({ error: '診療科の取得に失敗しました' }, { status: 500 })
   return NextResponse.json(data)
