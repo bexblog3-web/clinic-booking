@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { Resend } from 'resend'
+
+const DEPT_LABEL: Record<string, string> = { ent: '耳鼻科', orthopedics: '整形外科' }
 
 function isOpen() {
   const now = new Date()
@@ -83,12 +86,63 @@ export async function POST(req: NextRequest) {
   const nextNum = last ? last.queue_number + 1 : 1
   if (nextNum > 100) return NextResponse.json({ error: '本日の受付は終了しました（上限100人）' }, { status: 400 })
 
+  // 患者名を取得
+  const { data: patient } = await supabase
+    .from('patients')
+    .select('name')
+    .eq('id', patientId)
+    .single()
+
   const { data: booking, error } = await supabase
     .from('bookings')
     .insert([{ patient_id: patientId, department, queue_number: nextNum, symptom_since: symptomSince, symptom_detail: symptomDetail, email, status: 'booked', booking_date: t }])
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // メール送信
+  if (email && process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      const patientName = patient?.name || '患者'
+      const deptLabel = DEPT_LABEL[department] || department
+      const queueNum = String(nextNum).padStart(3, '0')
+      const statusUrl = `https://clinic-booking-inky.vercel.app/status`
+
+      await resend.emails.send({
+        from: 'はまもと整形外科クリニック <onboarding@resend.dev>',
+        to: email,
+        subject: `【受付完了】${deptLabel} 受付番号 ${queueNum} 番`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+            <h2 style="color: #16a34a;">受付が完了しました</h2>
+            <p>${patientName} 様</p>
+            <p>以下の内容で受付が完了しました。</p>
+            <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
+              <tr>
+                <td style="padding: 8px; background: #f0fdf4; font-weight: bold; width: 40%;">診療科</td>
+                <td style="padding: 8px; background: #f0fdf4;">${deptLabel}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: bold;">受付番号</td>
+                <td style="padding: 8px; font-size: 24px; font-weight: bold; color: #16a34a;">${queueNum} 番</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; background: #f0fdf4; font-weight: bold;">受付日</td>
+                <td style="padding: 8px; background: #f0fdf4;">${t}</td>
+              </tr>
+            </table>
+            <p>受付番号が近くなったら来院ください。</p>
+            <a href="${statusUrl}" style="display: inline-block; margin-top: 16px; padding: 12px 24px; background: #16a34a; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">混雑状況を確認する</a>
+            <p style="margin-top: 24px; color: #9ca3af; font-size: 12px;">はまもと整形外科クリニック</p>
+          </div>
+        `,
+      })
+    } catch (emailError) {
+      // メール送信失敗しても予約は成功として返す
+      console.error('Email send error:', emailError)
+    }
+  }
 
   return NextResponse.json(booking, { status: 201 })
 }
