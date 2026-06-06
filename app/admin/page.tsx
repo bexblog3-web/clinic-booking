@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
         <div className="text-center">
           <div className="text-3xl mb-2">🏥</div>
           <h1 className="text-xl font-bold text-gray-800">管理者ログイン</h1>
-          <p className="text-xs text-gray-400 mt-1">はまもと整形外科クリニック</p>
+          <p className="text-xs text-gray-400 mt-1">すこやかクリニック</p>
         </div>
         {error && <p className="text-red-500 text-sm text-center bg-red-50 rounded-lg p-3">{error}</p>}
         <div className="space-y-1">
