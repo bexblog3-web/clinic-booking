@@ -26,7 +26,7 @@ export default function StatusPage() {
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
-          <p className="text-gray-400 text-sm">はまもと整形外科クリニック</p>
+          <p className="text-gray-400 text-sm">すこやかクリニック</p>
           <h1 className="text-white text-2xl font-bold mt-1">受付状況</h1>
           {!isOpen && <p className="text-yellow-400 text-sm mt-2">{jstHour < 8 ? '受付は8:00から開始' : '本日の受付は終了'}</p>}
         </div>
