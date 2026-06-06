@@ -50,7 +50,7 @@ export default function MonitorPage() {
       {/* Header */}
       <header className="w-full max-w-4xl mb-6 bg-white rounded-2xl shadow-sm px-6 py-4 flex items-center justify-between">
         <div>
-          <p className="text-xs text-gray-400 font-semibold">はまもと整形外科クリニック</p>
+          <p className="text-xs text-gray-400 font-semibold">すこやかクリニック</p>
           <h1 className="text-2xl font-bold text-green-700">{DEPT_LABEL[dept] ?? dept} 待合モニター</h1>
         </div>
         <span className="text-3xl font-mono font-bold text-green-700">{time}</span>
