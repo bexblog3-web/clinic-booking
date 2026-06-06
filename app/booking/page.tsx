@@ -35,7 +35,7 @@ export default function BookingPage() {
   if (timeMsg) return <div className="min-h-screen bg-green-50 flex items-center justify-center px-4"><div className="bg-white rounded-2xl shadow p-8 max-w-sm w-full text-center space-y-4"><div className="text-4xl">⏰</div><p className="text-gray-700 font-semibold">{timeMsg}</p><button onClick={()=>router.push('/')} className="text-sm text-green-600 underline">トップに戻る</button></div></div>
   return (
     <div className="min-h-screen bg-green-50">
-      <header className="bg-white shadow-sm px-4 py-4"><p className="text-xs text-gray-400">はまもと整形外科クリニック</p><h1 className="text-base font-bold text-gray-800">{patient.name}さん、こんにちは</h1></header>
+      <header className="bg-white shadow-sm px-4 py-4"><p className="text-xs text-gray-400">すこやかクリニック</p><h1 className="text-base font-bold text-gray-800">{patient.name}さん、こんにちは</h1></header>
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         {queue && <div className="grid grid-cols-2 gap-3">{Object.entries(DEPT).map(([k,l])=><div key={k} className="bg-white rounded-xl p-3 shadow-sm text-center"><p className="text-xs text-gray-500">{l} 現在案内中</p><p className="text-2xl font-bold text-green-600">{queue[k]?.current_number>0?String(queue[k].current_number).padStart(3,'0'):'---'}</p></div>)}</div>}
         <div className="bg-green-100 rounded-xl px-4 py-3 text-sm text-green-800">📋 受付時間：平日 8:00〜18:00（先着100名）</div>
