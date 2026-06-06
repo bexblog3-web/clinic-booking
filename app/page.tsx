@@ -31,7 +31,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-sm space-y-6">
         <div className="text-center">
           <div className="text-4xl mb-3">🏥</div>
-          <p className="text-xs text-gray-400">はまもと整形外科クリニック</p>
+          <p className="text-xs text-gray-400">すこやかクリニック</p>
           <h1 className="text-xl font-bold text-gray-800 mt-1">受付システム</h1>
         </div>
         <div className="bg-green-50 rounded-xl px-4 py-3 text-sm text-green-800 text-center">
