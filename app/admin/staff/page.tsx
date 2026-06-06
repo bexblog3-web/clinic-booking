@@ -87,7 +87,7 @@ export default function StaffPage() {
       <header className="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-gray-800">🏥 受付スタッフ画面</h1>
-          <p className="text-xs text-gray-400">はまもと整形外科クリニック</p>
+          <p className="text-xs text-gray-400">すこやかクリニック</p>
         </div>
         <button onClick={() => { sessionStorage.clear(); router.push('/admin') }}
           className="text-sm text-gray-500 hover:text-gray-700">ログアウト</button>
