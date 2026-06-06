@@ -73,7 +73,7 @@ export default function BookPage() {
     <div className="min-h-screen bg-green-50">
       <header className="bg-white shadow-sm px-4 py-4 flex items-center justify-between">
         <div>
-          <p className="text-xs text-gray-400">はまもと整形外科クリニック</p>
+          <p className="text-xs text-gray-400">すこやかクリニック</p>
           <h1 className="text-base font-bold text-gray-800">受付番号の取得</h1>
         </div>
         <div className="text-right">
