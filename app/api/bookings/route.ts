@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: '受付時間外です' }, { status: 400 })
     }
 
-  if (patientId !== '999999') {
+  if (String(patientId) !== '999999') {
         const { data: existing } = await supabase
           .from('bookings')
           .select('id')
