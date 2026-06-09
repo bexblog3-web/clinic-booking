@@ -8,7 +8,6 @@ const ADMIN_KEY_DEPT: Record<string, string | null> = {
     [process.env.ADMIN_KEY_ORTHO ?? 'key-ortho-secret']: 'orthopedics',
     [process.env.ADMIN_KEY_ENT ?? 'key-ent-secret']: 'ent',
 }
-
 function sanitize(str: string): string {
     return str.replace(/[<>"'&]/g, c =>
           ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' }[c] ?? c)
@@ -132,8 +131,8 @@ export async function POST(req: NextRequest) {
                           method: 'POST',
                           headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                                      from: 'onboarding@resend.dev',
-                                      to: 'bexblog3@gmail.com', // テスト用固定（Resendサンドボックス制限）
+                                      from: 'no-reply@yoyaku-mail.com',
+                                      to: email,
                                       subject: '予約完了のお知らせ',
                                       html: `<p>${patient.name}様、ご予約を承りました。</p><p>診療科: ${department === 'orthopedics' ? '整形外科' : '耳鼻科'}</p><p>受付番号: ${String(queueNumber).padStart(3, '0')}</p>`,
                           }),
