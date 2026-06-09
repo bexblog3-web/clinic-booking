@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
               booking_date: today,
               status: 'booked',
               symptom_detail: sanitizedSymptom,
+              email: email ?? null,
       })
       .select()
       .single()
@@ -134,7 +135,7 @@ export async function POST(req: NextRequest) {
                                       from: 'no-reply@yoyaku-mail.com',
                                       to: email,
                                       subject: '予約完了のお知らせ',
-                                      html: `<p>${patient.name}様、ご予約を承りました。</p><p>診療科: ${department === 'orthopedics' ? '整形外科' : '耳鼻科'}</p><p>受付番号: ${String(queueNumber).padStart(3, '0')}</p>`,
+                                      html: `<p>${patient.name}様、ご予約を承りました。</p><p>診療科: ${department === 'orthopedics' ? '整形外科' : '耳鼻科'}</p><p>受付番号: ${String(queueNumber).padStart(3, '0')}</p><p>現在の混雑状況は<a href="https://clinic-booking-inky.vercel.app/status">こちら</a></p>`,
                           }),
                 })
         } catch {}
