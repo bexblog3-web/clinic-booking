@@ -62,6 +62,7 @@ export default function BookPage() {
 
   const isFormValid = department && symptomDetail && email
   const alreadyBooked = existingBookings.find(b => b.department === department)
+  const isTestPatient = String(patient?.id) === '999999'
 
   if (!patient) return <div className="min-h-screen bg-green-50 flex items-center justify-center"><p>読み込み中...</p></div>
 
@@ -129,8 +130,8 @@ export default function BookPage() {
               <label className="text-sm font-semibold text-gray-700">診療科 <span className="text-xs text-green-600">必須</span></label>
               <select value={department} onChange={e => setDepartment(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-green-400">
                 <option value="">選択してください</option>
-                {!existingBookings.find(b => b.department === 'ent') && <option value="ent">耳鼻科</option>}
-                {!existingBookings.find(b => b.department === 'orthopedics') && <option value="orthopedics">整形外科</option>}
+                {(isTestPatient || !existingBookings.find(b => b.department === 'ent')) && <option value="ent">耳鼻科</option>}
+                {(isTestPatient || !existingBookings.find(b => b.department === 'orthopedics')) && <option value="orthopedics">整形外科</option>}
               </select>
               {alreadyBooked && <p className="text-xs text-orange-500">この診療科は本日すでに受付済みです</p>}
             </div>
