@@ -53,5 +53,35 @@ export async function POST(req: NextRequest) {
     .update({ current_number: nextPatient.queue_number, updated_at: new Date().toISOString() })
     .eq('department', department)
 
+  // Send reminder email to patient 5 positions ahead
+  const reminderQueueNumber = nextPatient.queue_number + 5
+  const { data: reminderPatient } = await supabase
+    .from('bookings')
+    .select('email, patient_id')
+    .eq('department', department)
+    .eq('booking_date', t)
+    .eq('queue_number', reminderQueueNumber)
+    .not('status', 'eq', 'cancelled')
+    .single()
+
+  if (reminderPatient?.email && process.env.RESEND_API_KEY) {
+    try {
+      const deptName = department === 'orthopedics' ? '整形外科' : '耳鼻科'
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'no-reply@yoyaku-mail.com',
+          to: reminderPatient.email,
+          subject: 'もうすぐお呼びします',
+          html: `<p>まもなくお呼びする予定です。診察室へお越しください。</p><p>診療科: ${deptName}</p><p>受付番号: ${String(reminderQueueNumber).padStart(3, '0')}</p><p>現在の混雑状況は<a href="https://clinic-booking-inky.vercel.app/status">こちら</a></p>`,
+        }),
+      })
+    } catch {}
+  }
+
   return NextResponse.json({ calledNumber: nextPatient.queue_number })
 }
