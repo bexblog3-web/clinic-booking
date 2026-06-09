@@ -9,7 +9,6 @@ function today() {
 export async function GET() {
   const supabase = getSupabaseAdmin()
   const t = today()
-  const { data: qs } = await supabase.from('queue_status').select('*')
   const depts = ['ent', 'orthopedics']
   const result: Record<string, {
     current: number
@@ -17,13 +16,16 @@ export async function GET() {
     all_numbers: { queue_number: number; status: string }[]
   }> = {}
   for (const dept of depts) {
-    const status = qs?.find(q => q.department === dept)
+    // Derive current from today's calling/done bookings (resets naturally each day)
+    const { data: currentRow } = await supabase
+      .from('bookings').select('queue_number').eq('department', dept).eq('booking_date', t)
+      .in('status', ['calling', 'done']).order('queue_number', { ascending: false }).limit(1).single()
     const { data: nextRow } = await supabase
       .from('bookings').select('queue_number').eq('department', dept).eq('booking_date', t).eq('status', 'arrived').order('queue_number').limit(1).single()
     const { data: allRows } = await supabase
       .from('bookings').select('queue_number, status').eq('department', dept).eq('booking_date', t).neq('status', 'cancelled').order('queue_number')
     result[dept] = {
-      current: status?.current_number ?? 0,
+      current: currentRow?.queue_number ?? 0,
       next: nextRow?.queue_number ?? null,
       all_numbers: allRows ?? []
     }
