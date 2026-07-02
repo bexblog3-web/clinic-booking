@@ -14,11 +14,15 @@ return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
 }
 
 const body = await req.json()
-const { patientName, department, phone } = body
+const { patientName, department, phone, birthdate } = body
 
 if (!patientName || !department) {
 return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
 }
+
+// patients.birthdate は必須。窓口で聞けた場合はその値（YYYYMMDD）、不明時は仮値で登録する。
+// 仮値の患者はWebログイン不可（正しい生年月日と一致しないため）
+const normalizedBirthdate = (birthdate ?? '').replace(/[-\/]/g, '') || '00000000'
 
 // Department isolation for non-staff keys
 const allowedDept = adminKey === orthoKey ? 'orthopedics' : adminKey === entKey ? 'ent' : null
@@ -48,7 +52,7 @@ for (let attempt = 0; attempt < 5; attempt++) {
 const walkinId = String(800000 + Math.floor(Math.random() * 100000))
 const res = await supabase
 .from('patients')
-.insert({ id: walkinId, name: patientName, phone: phone ?? '' })
+.insert({ id: walkinId, name: patientName, phone: phone ?? '', birthdate: normalizedBirthdate })
 .select('id')
 .single()
 newPatient = res.data
