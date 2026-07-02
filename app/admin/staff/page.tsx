@@ -78,6 +78,7 @@ export default function StaffPage() {
     if (s === 'arrived') return { text: '来院済（待機中）', color: 'text-green-600 bg-green-50' }
     if (s === 'calling') return { text: '診察中', color: 'text-blue-600 bg-blue-50' }
     if (s === 'done') return { text: '完了', color: 'text-gray-400 bg-gray-50' }
+    if (s === 'absent') return { text: '不在（呼出済）', color: 'text-orange-600 bg-orange-50' }
     if (s === 'cancelled') return { text: 'キャンセル', color: 'text-red-400 bg-red-50' }
     return { text: s, color: 'text-gray-500 bg-gray-50' }
   }

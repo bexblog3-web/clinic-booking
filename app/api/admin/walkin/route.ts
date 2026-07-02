@@ -84,7 +84,7 @@ patient_id: patientId,
 department,
 queue_number: queueNumber,
 booking_date: today,
-status: 'waiting',
+status: 'arrived', // 窓口受付の患者はその場にいるため「来院済・待機中」で登録（旧: waiting は呼び出し対象外になるバグ）
 })
 .select()
 .single()

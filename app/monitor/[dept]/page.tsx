@@ -89,8 +89,9 @@ export default function MonitorPage() {
         ) : (
           <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10">
             {info.all_numbers.map(({ queue_number, status }) => {
-              const isCurrent = queue_number === info.current
+              const isCurrent = queue_number === info.current && status === 'calling'
               const isDone = status === 'done' || status === 'called'
+              const isAbsent = status === 'absent'
               const isNext = queue_number === info.next && !isCurrent
 
               let tileClass = 'rounded-xl p-3 text-center text-sm font-bold '
@@ -102,6 +103,9 @@ export default function MonitorPage() {
               } else if (isNext) {
                 tileClass += 'bg-green-100 border-2 border-green-500 text-green-700'
                 numClass += 'text-green-700'
+              } else if (isAbsent) {
+                tileClass += 'bg-orange-50 border border-orange-300 text-orange-700'
+                numClass += 'text-orange-600'
               } else if (isDone) {
                 tileClass += 'bg-gray-100 text-gray-400'
                 numClass += 'text-gray-400 line-through'
@@ -115,6 +119,7 @@ export default function MonitorPage() {
                   <span className={numClass}>{String(queue_number).padStart(3, '0')}</span>
                   {isCurrent && <p className="text-xs mt-1 text-green-200">診察中</p>}
                   {isNext && <p className="text-xs mt-1 text-green-600">次</p>}
+                  {isAbsent && <p className="text-xs mt-1 text-orange-600">受付へ</p>}
                 </div>
               )
             })}
