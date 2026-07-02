@@ -41,13 +41,23 @@ const { data: existing } = await supabase
 if (existing) {
 patientId = existing.id
 } else {
-const { data: newPatient, error: pErr } = await supabase
+// patients.id は自動採番されないため、当日受付用のIDを発行する（8始まりの6桁・重複時はリトライ）
+let newPatient = null
+let pErr = null
+for (let attempt = 0; attempt < 5; attempt++) {
+const walkinId = String(800000 + Math.floor(Math.random() * 100000))
+const res = await supabase
 .from('patients')
-.insert({ name: patientName, phone: phone ?? '' })
+.insert({ id: walkinId, name: patientName, phone: phone ?? '' })
 .select('id')
 .single()
+newPatient = res.data
+pErr = res.error
+if (newPatient) break
+if (pErr && pErr.code !== '23505') break // 23505=重複エラー。それ以外は即中断
+}
 if (pErr || !newPatient) {
-return NextResponse.json({ error: '患者登録に失敗しました' }, { status: 500 })
+return NextResponse.json({ error: `患者登録に失敗しました: ${pErr?.message ?? '不明'}` }, { status: 500 })
 }
 patientId = newPatient.id
 }
