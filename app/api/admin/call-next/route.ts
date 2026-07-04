@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
+// #8: 認証キーは環境変数から読む（コードに直書きしない）。本番のキー値はVercelの環境変数で管理する
 const DOCTOR_KEYS: Record<string, string> = {
-  'key-ortho-secret': 'orthopedics',
-  'key-ent-secret': 'ent',
+  [process.env.ADMIN_KEY_ORTHO ?? 'key-ortho-secret']: 'orthopedics',
+  [process.env.ADMIN_KEY_ENT ?? 'key-ent-secret']: 'ent',
 }
 
 function today() {

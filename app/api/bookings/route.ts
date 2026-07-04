@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { verifyPatientToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +9,16 @@ const ADMIN_KEY_DEPT: Record<string, string | null> = {
     [process.env.ADMIN_KEY_STAFF ?? 'key-staff-secret']: null,
     [process.env.ADMIN_KEY_ORTHO ?? 'key-ortho-secret']: 'orthopedics',
     [process.env.ADMIN_KEY_ENT ?? 'key-ent-secret']: 'ent',
+}
+
+// #4: ログイン時に発行したトークン(Cookie)から本人の患者IDを取り出す。
+// 認証されていなければ null。予約の作成・キャンセル・照会はこれで本人性を検証する。
+async function getAuthedPatientId(): Promise<string | null> {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('patient_token')?.value
+    if (!token) return null
+    const payload = await verifyPatientToken(token)
+    return payload ? String(payload.patientId) : null
 }
 function sanitize(str: string): string {
     return str.replace(/[<>"'&]/g, c =>
@@ -38,6 +50,11 @@ export async function GET(req: NextRequest) {
   // Patient: get today's own bookings by patientId
   const patientId = searchParams.get('patientId')
     if (patientId) {
+          // #4: 本人のトークンと照会先の患者IDが一致する場合のみ許可（他人の予約は見せない）
+          const authedId = await getAuthedPatientId()
+          if (!authedId || authedId !== String(patientId)) {
+                return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+          }
           const today = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0, 10)
           const { data, error } = await supabase
             .from('bookings')
@@ -56,9 +73,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin()
     const body = await req.json()
-    const { patientId, department, symptomSince, symptomDetail, email } = body
+    const { department, symptomSince, symptomDetail, email } = body
 
-  if (!patientId || !department) {
+  // #4: 予約作成は本人のトークンが必須。患者IDはトークン由来のものだけを使う
+  //（リクエスト本文のpatientIdは信用しない＝他人名義の予約を作れないようにする）
+  const patientId = await getAuthedPatientId()
+  if (!patientId) {
+        return NextResponse.json({ error: '認証が必要です。再度ログインしてください' }, { status: 401 })
+  }
+
+  if (!department) {
         return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
 
@@ -154,6 +178,20 @@ export async function PATCH(req: NextRequest) {
 
   if (!['cancelled'].includes(status)) {
         return NextResponse.json({ error: '無効なステータスです' }, { status: 400 })
+  }
+
+  // #4: キャンセルは本人のトークンが必須。対象の予約が本人のものであることを確認する
+  const authedPatientId = await getAuthedPatientId()
+  if (!authedPatientId) {
+        return NextResponse.json({ error: '認証が必要です。再度ログインしてください' }, { status: 401 })
+  }
+  const { data: target } = await supabase
+      .from('bookings')
+      .select('id, patient_id')
+      .eq('id', id)
+      .single()
+  if (!target || String(target.patient_id) !== authedPatientId) {
+        return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
   const { data, error } = await supabase

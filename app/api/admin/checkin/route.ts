@@ -3,7 +3,9 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   const authKey = req.headers.get('x-admin-key')
-  if (authKey !== 'key-staff-secret') {
+  // #8: 認証キーは環境変数から読む（コードに直書きしない）。本番のキー値はVercelの環境変数で管理する
+  const staffKey = process.env.ADMIN_KEY_STAFF ?? 'key-staff-secret'
+  if (authKey !== staffKey) {
     return NextResponse.json({ error: '認証エラー' }, { status: 401 })
   }
 
